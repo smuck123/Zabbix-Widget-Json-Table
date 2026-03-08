@@ -25,13 +25,13 @@ class WidgetForm extends CWidgetForm {
 			->addField(new CWidgetFieldTextBox('visible_columns', _('Visible table columns (comma-separated)')))
 			->addField(new CWidgetFieldTextBox('chart_label_column', _('Chart label column')))
 			->addField(new CWidgetFieldTextBox('chart_value_columns', _('Chart value columns (comma-separated)')))
-			->addField(new CWidgetFieldTextBox('chart_type', _('Chart type (bar, compact-bar, value-only)')))
-			->addField(new CWidgetFieldTextBox('max_chart_rows', _('Max chart rows')))
-			->addField(new CWidgetFieldTextBox('chart_palette', _('Chart palette (#hex,#hex,...)')))
-			->addField(new CWidgetFieldTextBox('color_ok', _('OK color')))
-			->addField(new CWidgetFieldTextBox('color_warn', _('Warn color')))
-			->addField(new CWidgetFieldTextBox('color_error', _('Error color')))
-			->addField(new CWidgetFieldTextBox('color_info', _('Info color')))
+			->addField((new CWidgetFieldTextBox('chart_type', _('Chart type (bar, compact-bar, value-only)')))->setDefault('bar'))
+			->addField((new CWidgetFieldTextBox('max_chart_rows', _('Max chart rows')))->setDefault('10'))
+			->addField((new CWidgetFieldTextBox('chart_palette', _('Chart palette (#hex,#hex,...)')))->setDefault('#0284c7,#7c3aed,#16a34a,#ea580c,#dc2626,#0891b2'))
+			->addField((new CWidgetFieldTextBox('color_ok', _('OK color')))->setDefault('#5cb85c'))
+			->addField((new CWidgetFieldTextBox('color_warn', _('Warn color')))->setDefault('#f0ad4e'))
+			->addField((new CWidgetFieldTextBox('color_error', _('Error color')))->setDefault('#d9534f'))
+			->addField((new CWidgetFieldTextBox('color_info', _('Info color')))->setDefault('#5bc0de'))
 			->addField(new CWidgetFieldTextBox('status_color_map', _('Status color map (VALUE=#hex,VALUE=#hex)')));
 	}
 }

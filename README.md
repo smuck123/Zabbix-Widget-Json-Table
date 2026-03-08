@@ -9,6 +9,7 @@ A custom Zabbix dashboard widget module that renders JSON data from a selected i
 - Optional expandable nested details per row.
 - Optional inline chart block (bar/compact-bar/value-only).
 - Status badges with configurable color mapping.
+- Case-insensitive column matching for visible columns and chart selectors.
 - Display controls for compact mode, dark header, and visible columns.
 
 ## Requirements
@@ -34,9 +35,9 @@ When editing the widget, configure these main fields:
 - **Dark table header** / **Compact mode**: Visual style options.
 - **Visible table columns**: Comma-separated allow-list of columns.
 - **Chart label/value columns**: Explicit chart column selection.
-- **Chart type**: `bar`, `compact-bar`, or `value-only`.
-- **Max chart rows**: Limit number of plotted rows.
-- **Chart palette**: Comma-separated HEX colors.
+- **Chart type**: `bar`, `compact-bar`, or `value-only` (default: `bar`).
+- **Max chart rows**: Limit number of plotted rows (default: `10`).
+- **Chart palette**: Comma-separated HEX colors (default palette is pre-filled in the form).
 - **Status color map**: Pairs like `OK=#22c55e,FAILED=#ef4444`.
 
 ## Notes
