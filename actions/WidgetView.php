@@ -7,196 +7,319 @@ use CControllerResponseData;
 
 class WidgetView extends CControllerDashboardWidgetView {
 
-    protected function doAction(): void {
-        $itemids = $this->fields_values['itemid'] ?? [];
-        $enable_sparklines = (bool) ($this->fields_values['enable_sparklines'] ?? 1);
-        $sparkline_height = (int) ($this->fields_values['sparkline_height'] ?? 28);
-        $sparkline_color = $this->sanitizeColor((string) ($this->fields_values['sparkline_color'] ?? '#2F7ED8'));
+	private function isListArray($value): bool {
+		if (!is_array($value)) {
+			return false;
+		}
 
-        $rows = [];
-        $columns = [];
-        $sparkline_cells = [];
-        $error = null;
-        $item_name = '';
+		return array_keys($value) === range(0, count($value) - 1);
+	}
 
-        if (!$itemids) {
-            $error = _('No item selected.');
-        }
-        else {
-            $items = \API::Item()->get([
-                'output' => ['itemid', 'name', 'lastvalue', 'value_type'],
-                'itemids' => $itemids,
-                'webitems' => true
-            ]);
+	private function parseCsv(string $value): array {
+		$result = [];
+		foreach (explode(',', $value) as $part) {
+			$part = trim($part);
+			if ($part !== '') {
+				$result[] = $part;
+			}
+		}
+		return array_values(array_unique($result));
+	}
 
-            if (!$items) {
-                $error = _('Selected item not found.');
-            }
-            else {
-                $item = $items[0];
-                $item_name = $item['name'];
-                $raw = $item['lastvalue'];
+	private function normalizeRows($decoded): array {
+		$rows = [];
 
-                if ($raw === '' || $raw === null) {
-                    $error = _('Item has no value.');
-                }
-                else {
-                    $decoded = json_decode($raw, true);
+		if (is_array($decoded)) {
+			if ($this->isListArray($decoded)) {
+				foreach ($decoded as $entry) {
+					if (is_array($entry)) {
+						$rows[] = $entry;
+					}
+					else {
+						$rows[] = ['value' => $entry];
+					}
+				}
+			}
+			else {
+				$rows[] = $decoded;
+			}
+		}
+		else {
+			$rows[] = ['value' => $decoded];
+		}
 
-                    if (json_last_error() !== JSON_ERROR_NONE) {
-                        $error = _('Item does not contain valid JSON.');
-                    }
-                    else {
-                        if (is_array($decoded)) {
-                            $is_list = array_keys($decoded) === range(0, count($decoded) - 1);
+		return $rows;
+	}
 
-                            if (!$is_list) {
-                                $decoded = [$decoded];
-                            }
+	private function getColumns(array $rows): array {
+		$columns = [];
 
-                            foreach ($decoded as $entry) {
-                                if (is_array($entry)) {
-                                    $rows[] = $entry;
+		foreach ($rows as $row) {
+			foreach (array_keys($row) as $key) {
+				if (!in_array($key, $columns, true)) {
+					$columns[] = $key;
+				}
+			}
+		}
 
-                                    foreach (array_keys($entry) as $key) {
-                                        if (!in_array($key, $columns, true)) {
-                                            $columns[] = $key;
-                                        }
-                                    }
-                                }
-                                else {
-                                    $rows[] = ['value' => $entry];
-                                    if (!in_array('value', $columns, true)) {
-                                        $columns[] = 'value';
-                                    }
-                                }
-                            }
-                        }
-                        else {
-                            $rows[] = ['value' => $decoded];
-                            $columns[] = 'value';
-                        }
+		return $columns;
+	}
 
-                        if (!$rows) {
-                            $error = _('JSON contains no rows.');
-                        }
-                    }
-                }
-            }
-        }
+	private function detectSummary(array $decoded): array {
+		if (isset($decoded['summary']) && is_array($decoded['summary'])) {
+			return $decoded['summary'];
+		}
 
-        if ($rows && $columns) {
-            foreach ($rows as $row_index => $row) {
-                foreach ($columns as $column) {
-                    $value = $row[$column] ?? null;
-                    $series = $this->extractNumericSeries($value);
+		$summary = [];
+		foreach ($decoded as $k => $v) {
+			if (!is_array($v) && !is_object($v)) {
+				$summary[$k] = $v;
+			}
+		}
+		return $summary;
+	}
 
-                    if ($series === null) {
-                        continue;
-                    }
+	private function detectRows($decoded): array {
+		if (is_array($decoded) && !$this->isListArray($decoded)) {
+			$candidates = ['rows', 'data', 'failedRuns', 'flows', 'latestFailedActivities', 'tables'];
 
-                    $sparkline_cells[$row_index][$column] = $this->buildSparklinePayload(
-                        $series,
-                        $enable_sparklines,
-                        $sparkline_height,
-                        $sparkline_color
-                    );
-                }
-            }
-        }
+			foreach ($candidates as $candidate) {
+				if (isset($decoded[$candidate])) {
+					return $this->normalizeRows($decoded[$candidate]);
+				}
+			}
 
-        $this->setResponse(new CControllerResponseData([
-            'name' => $this->getInput('name', _('JSON Table')),
-            'item_name' => $item_name,
-            'rows' => $rows,
-            'columns' => $columns,
-            'sparkline_cells' => $sparkline_cells,
-            'error' => $error,
-            'user' => [
-                'debug_mode' => $this->getDebugMode()
-            ]
-        ]));
-    }
+			foreach ($decoded as $v) {
+				if ($this->isListArray($v)) {
+					return $this->normalizeRows($v);
+				}
+			}
+		}
 
-    private function extractNumericSeries($value): ?array {
-        if (is_array($value) && $this->isNumericArray($value)) {
-            return array_map('floatval', $value);
-        }
+		return $this->normalizeRows($decoded);
+	}
 
-        if (is_string($value)) {
-            $decoded = json_decode($value, true);
+	private function detectStatusColumns(array $columns): array {
+		$preferred = ['status', 'state', 'action', 'severity', 'level'];
+		$found = [];
 
-            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded) && $this->isNumericArray($decoded)) {
-                return array_map('floatval', $decoded);
-            }
-        }
+		foreach ($preferred as $p) {
+			if (in_array($p, $columns, true)) {
+				$found[] = $p;
+			}
+		}
 
-        return null;
-    }
+		return $found;
+	}
 
-    private function isNumericArray(array $value): bool {
-        if ($value === [] || array_keys($value) !== range(0, count($value) - 1)) {
-            return false;
-        }
+	private function detectChartColumns(array $rows, array $columns): array {
+		$label_column = '';
+		$value_columns = [];
 
-        foreach ($value as $point) {
-            if (!is_numeric($point)) {
-                return false;
-            }
-        }
+		$preferred_label = ['name', 'hostname', 'pipelineName', 'flow', 'srcip', 'dstip', 'service', 'owner'];
+		foreach ($preferred_label as $p) {
+			if (in_array($p, $columns, true)) {
+				$label_column = $p;
+				break;
+			}
+		}
 
-        return true;
-    }
+		if ($label_column === '') {
+			foreach ($columns as $col) {
+				foreach ($rows as $row) {
+					if (isset($row[$col]) && !is_array($row[$col]) && !is_object($row[$col]) && !is_numeric($row[$col])) {
+						$label_column = $col;
+						break 2;
+					}
+				}
+			}
+		}
 
-    private function buildSparklinePayload(array $series, bool $enabled, int $height, string $color): array {
-        $height = max(12, min(120, $height));
-        $count = count($series);
-        $min = min($series);
-        $max = max($series);
-        $current = $series[$count - 1];
+		$preferred_numeric = ['Runs', 'count', 'days_left', 'cpu_pct', 'memory_pct', 'requests', 'total_bytes', 'sent_bytes', 'rcvd_bytes', 'duration_sec', 'value'];
+		foreach ($preferred_numeric as $p) {
+			if (in_array($p, $columns, true)) {
+				$value_columns[] = $p;
+			}
+		}
 
-        $payload = [
-            'summary' => [
-                'min' => $min,
-                'max' => $max,
-                'current' => $current
-            ],
-            'points' => null,
-            'width' => null,
-            'height' => $height,
-            'color' => $color
-        ];
+		if (!$value_columns) {
+			foreach ($columns as $col) {
+				foreach ($rows as $row) {
+					if (isset($row[$col]) && !is_array($row[$col]) && !is_object($row[$col]) && is_numeric($row[$col])) {
+						$value_columns[] = $col;
+						break;
+					}
+				}
+			}
+		}
 
-        if (!$enabled || $count < 2) {
-            return $payload;
-        }
+		return [
+			'label' => $label_column,
+			'values' => array_values(array_unique($value_columns))
+		];
+	}
 
-        $width = max(40, ($count - 1) * 8);
-        $range = $max - $min;
-        $points = [];
+	private function sanitizeColor(string $color, string $fallback): string {
+		$color = trim($color);
 
-        foreach ($series as $index => $point) {
-            $x = $count > 1 ? ($index * ($width / ($count - 1))) : 0;
-            $y = $range == 0.0
-                ? ($height / 2)
-                : ($height - (($point - $min) / $range) * $height);
+		if ($color === '') {
+			return $fallback;
+		}
 
-            $points[] = round($x, 2) . ',' . round($y, 2);
-        }
+		if (preg_match('/^#[0-9a-fA-F]{6}$/', $color) || preg_match('/^#[0-9a-fA-F]{3}$/', $color)) {
+			return $color;
+		}
 
-        $payload['width'] = $width;
-        $payload['points'] = implode(' ', $points);
+		return $fallback;
+	}
 
-        return $payload;
-    }
+	protected function doAction(): void {
+		$itemids = $this->fields_values['itemid'] ?? [];
+		$show_summary = (int) ($this->fields_values['show_summary'] ?? 1);
+		$show_expand = (int) ($this->fields_values['show_expand'] ?? 1);
+		$show_chart = (int) ($this->fields_values['show_chart'] ?? 0);
+		$dark_header = (int) ($this->fields_values['dark_header'] ?? 1);
+		$compact_mode = (int) ($this->fields_values['compact_mode'] ?? 0);
 
-    private function sanitizeColor(string $color): string {
-        $color = trim($color);
+		$visible_columns_raw = trim((string) ($this->fields_values['visible_columns'] ?? ''));
+		$chart_label_column = trim((string) ($this->fields_values['chart_label_column'] ?? ''));
+		$chart_value_columns_raw = trim((string) ($this->fields_values['chart_value_columns'] ?? ''));
+		$chart_type = trim((string) ($this->fields_values['chart_type'] ?? 'bar'));
+		$max_chart_rows_raw = trim((string) ($this->fields_values['max_chart_rows'] ?? '10'));
+		$chart_palette_raw = trim((string) ($this->fields_values['chart_palette'] ?? ''));
 
-        if (preg_match('/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/', $color)) {
-            return $color;
-        }
+		$color_ok = $this->sanitizeColor((string) ($this->fields_values['color_ok'] ?? ''), '#5cb85c');
+		$color_warn = $this->sanitizeColor((string) ($this->fields_values['color_warn'] ?? ''), '#f0ad4e');
+		$color_error = $this->sanitizeColor((string) ($this->fields_values['color_error'] ?? ''), '#d9534f');
+		$color_info = $this->sanitizeColor((string) ($this->fields_values['color_info'] ?? ''), '#5bc0de');
+		$status_color_map = trim((string) ($this->fields_values['status_color_map'] ?? ''));
 
-        return '#2F7ED8';
-    }
+		$error = null;
+		$item_name = '';
+		$rows = [];
+		$columns = [];
+		$visible_columns = [];
+		$summary = [];
+		$status_columns = [];
+		$chart_value_columns = [];
+		$chart_palette = [];
+
+		$max_chart_rows = (int) $max_chart_rows_raw;
+		if ($max_chart_rows <= 0) {
+			$max_chart_rows = 10;
+		}
+
+		if (!$itemids) {
+			$error = _('No item selected.');
+		}
+		else {
+			$items = \API::Item()->get([
+				'output' => ['itemid', 'name', 'lastvalue'],
+				'itemids' => $itemids,
+				'webitems' => true
+			]);
+
+			if (!$items) {
+				$error = _('Selected item not found.');
+			}
+			else {
+				$item = $items[0];
+				$item_name = $item['name'];
+				$raw = $item['lastvalue'];
+
+				if ($raw === '' || $raw === null) {
+					$error = _('Item has no value.');
+				}
+				else {
+					$decoded = json_decode($raw, true);
+
+					if (json_last_error() !== JSON_ERROR_NONE) {
+						$error = _('Item does not contain valid JSON.');
+					}
+					else {
+						if (is_array($decoded) && !$this->isListArray($decoded)) {
+							$summary = $this->detectSummary($decoded);
+						}
+
+						$rows = $this->detectRows($decoded);
+						$columns = $this->getColumns($rows);
+						$status_columns = $this->detectStatusColumns($columns);
+
+						$detected_chart = $this->detectChartColumns($rows, $columns);
+
+						$visible_columns = $this->parseCsv($visible_columns_raw);
+						if (!$visible_columns) {
+							$visible_columns = $columns;
+						}
+						else {
+							$visible_columns = array_values(array_filter($visible_columns, function($c) use ($columns) {
+								return in_array($c, $columns, true);
+							}));
+							if (!$visible_columns) {
+								$visible_columns = $columns;
+							}
+						}
+
+						if ($chart_label_column === '' || !in_array($chart_label_column, $columns, true)) {
+							$chart_label_column = $detected_chart['label'];
+						}
+
+						$chart_value_columns = $this->parseCsv($chart_value_columns_raw);
+						if (!$chart_value_columns) {
+							$chart_value_columns = $detected_chart['values'];
+						}
+						else {
+							$chart_value_columns = array_values(array_filter($chart_value_columns, function($c) use ($columns) {
+								return in_array($c, $columns, true);
+							}));
+						}
+
+						if (!in_array($chart_type, ['bar', 'compact-bar', 'value-only'], true)) {
+							$chart_type = 'bar';
+						}
+
+						foreach ($this->parseCsv($chart_palette_raw) as $c) {
+							$chart_palette[] = $this->sanitizeColor($c, '#0284c7');
+						}
+						if (!$chart_palette) {
+							$chart_palette = ['#0284c7', '#7c3aed', '#16a34a', '#ea580c', '#dc2626', '#0891b2'];
+						}
+
+						if (!$rows) {
+							$error = _('JSON contains no rows.');
+						}
+					}
+				}
+			}
+		}
+
+		$this->setResponse(new CControllerResponseData([
+			'name' => $this->getInput('name', _('JSON Table')),
+			'item_name' => $item_name,
+			'rows' => $rows,
+			'columns' => $columns,
+			'visible_columns' => $visible_columns,
+			'summary' => $summary,
+			'status_columns' => $status_columns,
+			'show_summary' => $show_summary,
+			'show_expand' => $show_expand,
+			'show_chart' => $show_chart,
+			'dark_header' => $dark_header,
+			'compact_mode' => $compact_mode,
+			'chart_label_column' => $chart_label_column,
+			'chart_value_columns' => $chart_value_columns,
+			'chart_type' => $chart_type,
+			'max_chart_rows' => $max_chart_rows,
+			'chart_palette' => $chart_palette,
+			'color_ok' => $color_ok,
+			'color_warn' => $color_warn,
+			'color_error' => $color_error,
+			'color_info' => $color_info,
+			'status_color_map' => $status_color_map,
+			'error' => $error,
+			'user' => [
+				'debug_mode' => $this->getDebugMode()
+			]
+		]));
+	}
 }

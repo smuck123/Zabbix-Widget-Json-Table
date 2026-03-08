@@ -2,36 +2,36 @@
 
 namespace Modules\JsonTableWidget\Includes;
 
-use Zabbix\Widgets\{
-    CWidgetField,
-    CWidgetForm
-};
-
+use Zabbix\Widgets\CWidgetForm;
+use Zabbix\Widgets\CWidgetField;
 use Zabbix\Widgets\Fields\CWidgetFieldMultiSelectItem;
 use Zabbix\Widgets\Fields\CWidgetFieldCheckBox;
-use Zabbix\Widgets\Fields\CWidgetFieldIntegerBox;
 use Zabbix\Widgets\Fields\CWidgetFieldTextBox;
 
 class WidgetForm extends CWidgetForm {
 
-    public function addFields(): self {
-        return $this
-            ->addField(
-                (new CWidgetFieldMultiSelectItem('itemid', _('Item')))
-                    ->setFlags(CWidgetField::FLAG_NOT_EMPTY | CWidgetField::FLAG_LABEL_ASTERISK)
-                    ->setMultiple(false)
-            )
-            ->addField(
-                (new CWidgetFieldCheckBox('enable_sparklines', _('Enable sparklines')))
-                    ->setDefault(1)
-            )
-            ->addField(
-                (new CWidgetFieldIntegerBox('sparkline_height', _('Sparkline height'), 12, 120))
-                    ->setDefault(28)
-            )
-            ->addField(
-                (new CWidgetFieldTextBox('sparkline_color', _('Sparkline line color')))
-                    ->setDefault('#2F7ED8')
-            );
-    }
+	public function addFields(): self {
+		return $this
+			->addField(
+				(new CWidgetFieldMultiSelectItem('itemid', _('Item')))
+					->setFlags(CWidgetField::FLAG_NOT_EMPTY | CWidgetField::FLAG_LABEL_ASTERISK)
+					->setMultiple(false)
+			)
+			->addField((new CWidgetFieldCheckBox('show_summary', _('Show summary counters')))->setDefault(1))
+			->addField((new CWidgetFieldCheckBox('show_expand', _('Show nested detail rows')))->setDefault(1))
+			->addField((new CWidgetFieldCheckBox('show_chart', _('Show chart')))->setDefault(0))
+			->addField((new CWidgetFieldCheckBox('dark_header', _('Dark table header')))->setDefault(1))
+			->addField((new CWidgetFieldCheckBox('compact_mode', _('Compact mode')))->setDefault(0))
+			->addField(new CWidgetFieldTextBox('visible_columns', _('Visible table columns (comma-separated)')))
+			->addField(new CWidgetFieldTextBox('chart_label_column', _('Chart label column')))
+			->addField(new CWidgetFieldTextBox('chart_value_columns', _('Chart value columns (comma-separated)')))
+			->addField(new CWidgetFieldTextBox('chart_type', _('Chart type (bar, compact-bar, value-only)')))
+			->addField(new CWidgetFieldTextBox('max_chart_rows', _('Max chart rows')))
+			->addField(new CWidgetFieldTextBox('chart_palette', _('Chart palette (#hex,#hex,...)')))
+			->addField(new CWidgetFieldTextBox('color_ok', _('OK color')))
+			->addField(new CWidgetFieldTextBox('color_warn', _('Warn color')))
+			->addField(new CWidgetFieldTextBox('color_error', _('Error color')))
+			->addField(new CWidgetFieldTextBox('color_info', _('Info color')))
+			->addField(new CWidgetFieldTextBox('status_color_map', _('Status color map (VALUE=#hex,VALUE=#hex)')));
+	}
 }
