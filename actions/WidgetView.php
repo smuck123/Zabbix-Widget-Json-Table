@@ -188,6 +188,21 @@ class WidgetView extends CControllerDashboardWidgetView {
 		return $fallback;
 	}
 
+	private function getColorThemes(): array {
+		return [
+			'ocean' => ['#0284c7', '#0ea5e9', '#06b6d4', '#14b8a6', '#2563eb', '#0891b2'],
+			'violet' => ['#7c3aed', '#8b5cf6', '#6366f1', '#a855f7', '#9333ea', '#6d28d9'],
+			'forest' => ['#166534', '#16a34a', '#22c55e', '#15803d', '#65a30d', '#4d7c0f'],
+			'sunset' => ['#ea580c', '#f97316', '#fb7185', '#f43f5e', '#f59e0b', '#ef4444'],
+			'fire' => ['#b91c1c', '#dc2626', '#ef4444', '#f97316', '#ea580c', '#f59e0b'],
+			'ice' => ['#0f766e', '#0891b2', '#06b6d4', '#67e8f9', '#38bdf8', '#0284c7'],
+			'mono' => ['#374151', '#4b5563', '#6b7280', '#9ca3af', '#111827', '#334155'],
+			'neon' => ['#d946ef', '#22d3ee', '#84cc16', '#f97316', '#f43f5e', '#a3e635'],
+			'pastel' => ['#93c5fd', '#c4b5fd', '#86efac', '#f9a8d4', '#fdba74', '#67e8f9'],
+			'earth' => ['#92400e', '#b45309', '#a16207', '#4d7c0f', '#57534e', '#854d0e']
+		];
+	}
+
 	protected function doAction(): void {
 		$itemids = $this->fields_values['itemid'] ?? [];
 		$show_summary = (int) ($this->fields_values['show_summary'] ?? 1);
@@ -201,6 +216,7 @@ class WidgetView extends CControllerDashboardWidgetView {
 		$chart_value_columns_raw = trim((string) ($this->fields_values['chart_value_columns'] ?? ''));
 		$chart_type = trim((string) ($this->fields_values['chart_type'] ?? 'bar'));
 		$max_chart_rows_raw = trim((string) ($this->fields_values['max_chart_rows'] ?? '10'));
+		$color_theme = strtolower(trim((string) ($this->fields_values['color_theme'] ?? 'ocean')));
 		$chart_palette_raw = trim((string) ($this->fields_values['chart_palette'] ?? ''));
 
 		$color_ok = $this->sanitizeColor((string) ($this->fields_values['color_ok'] ?? ''), '#5cb85c');
@@ -218,6 +234,10 @@ class WidgetView extends CControllerDashboardWidgetView {
 		$status_columns = [];
 		$chart_value_columns = [];
 		$chart_palette = [];
+		$color_themes = $this->getColorThemes();
+		if (!array_key_exists($color_theme, $color_themes)) {
+			$color_theme = 'ocean';
+		}
 
 		$max_chart_rows = (int) $max_chart_rows_raw;
 		if ($max_chart_rows <= 0) {
@@ -289,15 +309,18 @@ class WidgetView extends CControllerDashboardWidgetView {
 							$chart_value_columns = $this->resolveColumnNames($columns, $chart_value_columns);
 						}
 
-						if (!in_array($chart_type, ['bar', 'compact-bar', 'value-only'], true)) {
+						if (!in_array($chart_type, ['bar', 'compact-bar', 'stacked-bar', 'dot', 'value-only'], true)) {
 							$chart_type = 'bar';
 						}
 
 						foreach ($this->parseCsv($chart_palette_raw) as $c) {
 							$chart_palette[] = $this->sanitizeColor($c, '#0284c7');
 						}
+						if (!$chart_palette && array_key_exists($color_theme, $color_themes)) {
+							$chart_palette = $color_themes[$color_theme];
+						}
 						if (!$chart_palette) {
-							$chart_palette = ['#0284c7', '#7c3aed', '#16a34a', '#ea580c', '#dc2626', '#0891b2'];
+							$chart_palette = $color_themes['ocean'];
 						}
 
 						if (!$rows) {
@@ -325,6 +348,7 @@ class WidgetView extends CControllerDashboardWidgetView {
 			'chart_value_columns' => $chart_value_columns,
 			'chart_type' => $chart_type,
 			'max_chart_rows' => $max_chart_rows,
+			'color_theme' => $color_theme,
 			'chart_palette' => $chart_palette,
 			'color_ok' => $color_ok,
 			'color_warn' => $color_warn,
