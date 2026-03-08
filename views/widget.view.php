@@ -21,19 +21,23 @@ $status_columns = is_array($data['status_columns'] ?? null) ? $data['status_colu
 $show_summary = !empty($data['show_summary']);
 $show_expand = !empty($data['show_expand']);
 $show_chart = !empty($data['show_chart']);
+$show_second_chart = !empty($data['show_second_chart']);
 $dark_header = !empty($data['dark_header']);
 $compact_mode = !empty($data['compact_mode']);
 
 $chart_label_column = (string) ($data['chart_label_column'] ?? '');
 $chart_value_columns = is_array($data['chart_value_columns'] ?? null) ? $data['chart_value_columns'] : [];
 $chart_type = (string) ($data['chart_type'] ?? 'bar');
+$chart2_label_column = (string) ($data['chart2_label_column'] ?? '');
+$chart2_value_columns = is_array($data['chart2_value_columns'] ?? null) ? $data['chart2_value_columns'] : [];
+$chart2_type = (string) ($data['chart2_type'] ?? 'bar');
 $max_chart_rows = (int) ($data['max_chart_rows'] ?? 10);
 $chart_palette = is_array($data['chart_palette'] ?? null) ? $data['chart_palette'] : ['#0284c7'];
 
-$color_ok = (string) ($data['color_ok'] ?? '#5cb85c');
-$color_warn = (string) ($data['color_warn'] ?? '#f0ad4e');
-$color_error = (string) ($data['color_error'] ?? '#d9534f');
-$color_info = (string) ($data['color_info'] ?? '#5bc0de');
+$color_ok = (string) ($data['color_ok'] ?? '#22c55e');
+$color_warn = (string) ($data['color_warn'] ?? '#f59e0b');
+$color_error = (string) ($data['color_error'] ?? '#ef4444');
+$color_info = (string) ($data['color_info'] ?? '#3b82f6');
 $status_color_map_raw = (string) ($data['status_color_map'] ?? '');
 
 $container_id = 'json_table_widget_' . uniqid();
@@ -162,6 +166,40 @@ $css = '
 	height: 10px;
 	border-radius: 999px;
 }
+#'.$container_id.' .jt-chart-line-wrap {
+	flex: 1;
+	height: '.$chart_bar_height.';
+	position: relative;
+}
+#'.$container_id.' .jt-chart-line {
+	position: absolute;
+	top: 50%;
+	left: 0;
+	right: 0;
+	height: 2px;
+	background: #cbd5e1;
+	transform: translateY(-50%);
+}
+#'.$container_id.' .jt-chart-line-point {
+	position: absolute;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	width: 10px;
+	height: 10px;
+	border-radius: 999px;
+}
+#'.$container_id.' .jt-chart-lollipop-stick {
+	position: absolute;
+	top: 50%;
+	left: 0;
+	height: 2px;
+	background: #94a3b8;
+	transform: translateY(-50%);
+}
+#'.$container_id.' .jt-chart-area {
+	height: '.$chart_bar_height.';
+	border-radius: 4px;
+}
 #'.$container_id.' .jt-chart-value {
 	min-width: 60px;
 	text-align: right;
@@ -246,6 +284,114 @@ function jt_status_color_value($value, $map, $ok, $warn, $error, $info) {
 	return '#777777';
 }
 
+function jt_render_chart_block(array $rows, string $label_column, array $value_columns, string $chart_type, int $max_chart_rows, array $chart_palette): string {
+	if ($label_column === '' || empty($value_columns)) {
+		return '';
+	}
+
+	$chart_rows = [];
+	$series_max = [];
+	foreach ($value_columns as $series_col) {
+		$series_max[$series_col] = 0;
+	}
+
+	foreach ($rows as $row) {
+		$label = isset($row[$label_column]) ? (string) $row[$label_column] : '';
+		if ($label === '') {
+			continue;
+		}
+
+		$series_values = [];
+		$has_numeric = false;
+		foreach ($value_columns as $series_col) {
+			$val = $row[$series_col] ?? null;
+			if (!is_array($val) && !is_object($val) && is_numeric($val)) {
+				$num = (float) $val;
+				$series_values[$series_col] = $num;
+				$has_numeric = true;
+				if ($num > $series_max[$series_col]) {
+					$series_max[$series_col] = $num;
+				}
+			}
+		}
+
+		if ($has_numeric) {
+			$chart_rows[] = ['label' => $label, 'values' => $series_values];
+		}
+	}
+
+	if (empty($chart_rows)) {
+		return '';
+	}
+
+	$primary_series = $value_columns[0];
+	usort($chart_rows, function($a, $b) use ($primary_series) {
+		$av = $a['values'][$primary_series] ?? 0;
+		$bv = $b['values'][$primary_series] ?? 0;
+		return $bv <=> $av;
+	});
+	$chart_rows = array_slice($chart_rows, 0, $max_chart_rows);
+
+	$html = '<div class="jt-chart-wrap">';
+	$html .= '<div class="jt-chart-title">'.htmlspecialchars($chart_type.' : '.$label_column.' / '.implode(', ', $value_columns), ENT_QUOTES, 'UTF-8').'</div>';
+
+	foreach ($chart_rows as $chart_row) {
+		$html .= '<div class="jt-chart-row">';
+		$html .= '<div class="jt-chart-label" title="'.htmlspecialchars($chart_row['label'], ENT_QUOTES, 'UTF-8').'">'.htmlspecialchars($chart_row['label'], ENT_QUOTES, 'UTF-8').'</div>';
+		$html .= '<div class="jt-chart-series-group">';
+
+		$palette_index = 0;
+		foreach ($value_columns as $series_col) {
+			if (!array_key_exists($series_col, $chart_row['values'])) {
+				continue;
+			}
+
+			$series_color = $chart_palette[$palette_index % count($chart_palette)];
+			$palette_index++;
+			$series_value = $chart_row['values'][$series_col];
+			$max_val = $series_max[$series_col] > 0 ? $series_max[$series_col] : 1;
+			$width = ($series_value / $max_val) * 100;
+
+			$html .= '<div class="jt-chart-series-row">';
+			$html .= '<div class="jt-chart-series-name">'.htmlspecialchars($series_col, ENT_QUOTES, 'UTF-8').'</div>';
+
+			if ($chart_type === 'value-only') {
+				$html .= '<div class="jt-chart-value">'.htmlspecialchars((string) $series_value, ENT_QUOTES, 'UTF-8').'</div>';
+			}
+			elseif ($chart_type === 'dot') {
+				$html .= '<div class="jt-chart-dot-wrap"><span class="jt-chart-dot" style="left:'.$width.'%; background:'.htmlspecialchars($series_color, ENT_QUOTES, 'UTF-8').';"></span></div>';
+				$html .= '<div class="jt-chart-value">'.htmlspecialchars((string) $series_value, ENT_QUOTES, 'UTF-8').'</div>';
+			}
+			elseif ($chart_type === 'line') {
+				$html .= '<div class="jt-chart-line-wrap"><span class="jt-chart-line"></span><span class="jt-chart-line-point" style="left:'.$width.'%; background:'.htmlspecialchars($series_color, ENT_QUOTES, 'UTF-8').';"></span></div>';
+				$html .= '<div class="jt-chart-value">'.htmlspecialchars((string) $series_value, ENT_QUOTES, 'UTF-8').'</div>';
+			}
+			elseif ($chart_type === 'lollipop') {
+				$html .= '<div class="jt-chart-line-wrap"><span class="jt-chart-lollipop-stick" style="width:'.$width.'%;"></span><span class="jt-chart-line-point" style="left:'.$width.'%; background:'.htmlspecialchars($series_color, ENT_QUOTES, 'UTF-8').';"></span></div>';
+				$html .= '<div class="jt-chart-value">'.htmlspecialchars((string) $series_value, ENT_QUOTES, 'UTF-8').'</div>';
+			}
+			else {
+				$bar_style = ($chart_type === 'stacked-bar')
+					? 'width:'.$width.'%; background:linear-gradient(90deg, '.htmlspecialchars($series_color, ENT_QUOTES, 'UTF-8').', #ffffff);'
+					: 'width:'.$width.'%; background:'.htmlspecialchars($series_color, ENT_QUOTES, 'UTF-8').';';
+				if ($chart_type === 'soft-area') {
+					$bar_style = 'width:'.$width.'%; background:'.htmlspecialchars($series_color, ENT_QUOTES, 'UTF-8').'; opacity:0.35;';
+				}
+				$html .= '<div class="jt-chart-bar-wrap"><div class="jt-chart-bar jt-chart-area" style="'.$bar_style.'"></div></div>';
+				$html .= '<div class="jt-chart-value">'.htmlspecialchars((string) $series_value, ENT_QUOTES, 'UTF-8').'</div>';
+			}
+
+			$html .= '</div>';
+		}
+
+		$html .= '</div>';
+		$html .= '</div>';
+	}
+
+	$html .= '</div>';
+	return $html;
+}
+
 $html = '<div id="'.$container_id.'">';
 
 if (!empty($data['item_name'])) {
@@ -266,101 +412,12 @@ if ($show_summary && !empty($summary)) {
 	$html .= '</div>';
 }
 
-if ($show_chart && $chart_label_column !== '' && !empty($chart_value_columns)) {
-	$chart_rows = [];
-	$series_max = [];
+if ($show_chart) {
+	$html .= jt_render_chart_block($rows, $chart_label_column, $chart_value_columns, $chart_type, $max_chart_rows, $chart_palette);
+}
 
-	foreach ($chart_value_columns as $series_col) {
-		$series_max[$series_col] = 0;
-	}
-
-	foreach ($rows as $row) {
-		$label = isset($row[$chart_label_column]) ? (string) $row[$chart_label_column] : '';
-		if ($label === '') {
-			continue;
-		}
-
-		$series_values = [];
-		$has_numeric = false;
-
-		foreach ($chart_value_columns as $series_col) {
-			$val = $row[$series_col] ?? null;
-			if (!is_array($val) && !is_object($val) && is_numeric($val)) {
-				$num = (float) $val;
-				$series_values[$series_col] = $num;
-				$has_numeric = true;
-				if ($num > $series_max[$series_col]) {
-					$series_max[$series_col] = $num;
-				}
-			}
-		}
-
-		if ($has_numeric) {
-			$chart_rows[] = [
-				'label' => $label,
-				'values' => $series_values
-			];
-		}
-	}
-
-	if (!empty($chart_rows)) {
-		$primary_series = $chart_value_columns[0];
-		usort($chart_rows, function($a, $b) use ($primary_series) {
-			$av = $a['values'][$primary_series] ?? 0;
-			$bv = $b['values'][$primary_series] ?? 0;
-			return $bv <=> $av;
-		});
-
-		$chart_rows = array_slice($chart_rows, 0, $max_chart_rows);
-
-		$html .= '<div class="jt-chart-wrap">';
-		$html .= '<div class="jt-chart-title">'.htmlspecialchars($chart_type.' : '.$chart_label_column.' / '.implode(', ', $chart_value_columns), ENT_QUOTES, 'UTF-8').'</div>';
-
-		foreach ($chart_rows as $chart_row) {
-			$html .= '<div class="jt-chart-row">';
-			$html .= '<div class="jt-chart-label" title="'.htmlspecialchars($chart_row['label'], ENT_QUOTES, 'UTF-8').'">'.htmlspecialchars($chart_row['label'], ENT_QUOTES, 'UTF-8').'</div>';
-			$html .= '<div class="jt-chart-series-group">';
-
-			$palette_index = 0;
-			foreach ($chart_value_columns as $series_col) {
-				if (!array_key_exists($series_col, $chart_row['values'])) {
-					continue;
-				}
-
-				$series_color = $chart_palette[$palette_index % count($chart_palette)];
-				$palette_index++;
-
-				$series_value = $chart_row['values'][$series_col];
-				$max_val = $series_max[$series_col] > 0 ? $series_max[$series_col] : 1;
-				$width = ($series_value / $max_val) * 100;
-
-				$html .= '<div class="jt-chart-series-row">';
-				$html .= '<div class="jt-chart-series-name">'.htmlspecialchars($series_col, ENT_QUOTES, 'UTF-8').'</div>';
-
-				if ($chart_type === 'value-only') {
-					$html .= '<div class="jt-chart-value">'.htmlspecialchars((string) $series_value, ENT_QUOTES, 'UTF-8').'</div>';
-				}
-				elseif ($chart_type === 'dot') {
-					$html .= '<div class="jt-chart-dot-wrap"><span class="jt-chart-dot" style="left:'.$width.'%; background:'.htmlspecialchars($series_color, ENT_QUOTES, 'UTF-8').';"></span></div>';
-					$html .= '<div class="jt-chart-value">'.htmlspecialchars((string) $series_value, ENT_QUOTES, 'UTF-8').'</div>';
-				}
-				else {
-					$bar_style = ($chart_type === 'stacked-bar')
-						? 'width:'.$width.'%; background:linear-gradient(90deg, '.htmlspecialchars($series_color, ENT_QUOTES, 'UTF-8').', #ffffff);'
-						: 'width:'.$width.'%; background:'.htmlspecialchars($series_color, ENT_QUOTES, 'UTF-8').';';
-					$html .= '<div class="jt-chart-bar-wrap"><div class="jt-chart-bar" style="'.$bar_style.'"></div></div>';
-					$html .= '<div class="jt-chart-value">'.htmlspecialchars((string) $series_value, ENT_QUOTES, 'UTF-8').'</div>';
-				}
-
-				$html .= '</div>';
-			}
-
-			$html .= '</div>';
-			$html .= '</div>';
-		}
-
-		$html .= '</div>';
-	}
+if ($show_second_chart) {
+	$html .= jt_render_chart_block($rows, $chart2_label_column, $chart2_value_columns, $chart2_type, $max_chart_rows, $chart_palette);
 }
 
 $html .= '<table class="jt-table">';
