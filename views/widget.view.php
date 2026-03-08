@@ -58,7 +58,7 @@ $header_fg = $dark_header ? '#f8fafc' : '#111827';
 $row_fg = '#1f2937';
 $padding = $compact_mode ? '4px 6px' : '6px 8px';
 $font_size = $compact_mode ? '11px' : '12px';
-$chart_bar_height = ($chart_type === 'compact-bar') ? '10px' : '18px';
+$chart_bar_height = ($chart_type === 'compact-bar') ? '10px' : (($chart_type === 'dot') ? '8px' : '18px');
 
 $css = '
 <style>
@@ -148,6 +148,19 @@ $css = '
 }
 #'.$container_id.' .jt-chart-bar {
 	height: '.$chart_bar_height.';
+}
+#'.$container_id.' .jt-chart-dot-wrap {
+	flex: 1;
+	height: '.$chart_bar_height.';
+	position: relative;
+}
+#'.$container_id.' .jt-chart-dot {
+	position: absolute;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	width: 10px;
+	height: 10px;
+	border-radius: 999px;
 }
 #'.$container_id.' .jt-chart-value {
 	min-width: 60px;
@@ -327,8 +340,15 @@ if ($show_chart && $chart_label_column !== '' && !empty($chart_value_columns)) {
 				if ($chart_type === 'value-only') {
 					$html .= '<div class="jt-chart-value">'.htmlspecialchars((string) $series_value, ENT_QUOTES, 'UTF-8').'</div>';
 				}
+				elseif ($chart_type === 'dot') {
+					$html .= '<div class="jt-chart-dot-wrap"><span class="jt-chart-dot" style="left:'.$width.'%; background:'.htmlspecialchars($series_color, ENT_QUOTES, 'UTF-8').';"></span></div>';
+					$html .= '<div class="jt-chart-value">'.htmlspecialchars((string) $series_value, ENT_QUOTES, 'UTF-8').'</div>';
+				}
 				else {
-					$html .= '<div class="jt-chart-bar-wrap"><div class="jt-chart-bar" style="width:'.$width.'%; background:'.htmlspecialchars($series_color, ENT_QUOTES, 'UTF-8').';"></div></div>';
+					$bar_style = ($chart_type === 'stacked-bar')
+						? 'width:'.$width.'%; background:linear-gradient(90deg, '.htmlspecialchars($series_color, ENT_QUOTES, 'UTF-8').', #ffffff);'
+						: 'width:'.$width.'%; background:'.htmlspecialchars($series_color, ENT_QUOTES, 'UTF-8').';';
+					$html .= '<div class="jt-chart-bar-wrap"><div class="jt-chart-bar" style="'.$bar_style.'"></div></div>';
 					$html .= '<div class="jt-chart-value">'.htmlspecialchars((string) $series_value, ENT_QUOTES, 'UTF-8').'</div>';
 				}
 
