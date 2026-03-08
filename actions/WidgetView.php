@@ -99,27 +99,46 @@ class WidgetView extends CControllerDashboardWidgetView {
 		return $this->normalizeRows($decoded);
 	}
 
-	private function detectStatusColumns(array $columns): array {
-		$preferred = ['status', 'state', 'action', 'severity', 'level'];
-		$found = [];
+	private function resolveColumnName(array $columns, string $name): ?string {
+		$name_lc = strtolower($name);
 
-		foreach ($preferred as $p) {
-			if (in_array($p, $columns, true)) {
-				$found[] = $p;
+		foreach ($columns as $column) {
+			if (strtolower($column) === $name_lc) {
+				return $column;
 			}
 		}
 
-		return $found;
+		return null;
+	}
+
+	private function resolveColumnNames(array $columns, array $names): array {
+		$result = [];
+
+		foreach ($names as $name) {
+			$resolved = $this->resolveColumnName($columns, $name);
+			if ($resolved !== null && !in_array($resolved, $result, true)) {
+				$result[] = $resolved;
+			}
+		}
+
+		return $result;
+	}
+
+	private function detectStatusColumns(array $columns): array {
+		$preferred = ['status', 'state', 'action', 'severity', 'level'];
+
+		return $this->resolveColumnNames($columns, $preferred);
 	}
 
 	private function detectChartColumns(array $rows, array $columns): array {
 		$label_column = '';
 		$value_columns = [];
 
-		$preferred_label = ['name', 'hostname', 'pipelineName', 'flow', 'srcip', 'dstip', 'service', 'owner'];
+		$preferred_label = ['name', 'hostname', 'pipelinename', 'flow', 'srcip', 'dstip', 'service', 'owner'];
 		foreach ($preferred_label as $p) {
-			if (in_array($p, $columns, true)) {
-				$label_column = $p;
+			$resolved = $this->resolveColumnName($columns, $p);
+			if ($resolved !== null) {
+				$label_column = $resolved;
 				break;
 			}
 		}
@@ -135,12 +154,8 @@ class WidgetView extends CControllerDashboardWidgetView {
 			}
 		}
 
-		$preferred_numeric = ['Runs', 'count', 'days_left', 'cpu_pct', 'memory_pct', 'requests', 'total_bytes', 'sent_bytes', 'rcvd_bytes', 'duration_sec', 'value'];
-		foreach ($preferred_numeric as $p) {
-			if (in_array($p, $columns, true)) {
-				$value_columns[] = $p;
-			}
-		}
+		$preferred_numeric = ['runs', 'count', 'days_left', 'cpu_pct', 'memory_pct', 'requests', 'total_bytes', 'sent_bytes', 'rcvd_bytes', 'duration_sec', 'value'];
+		$value_columns = $this->resolveColumnNames($columns, $preferred_numeric);
 
 		if (!$value_columns) {
 			foreach ($columns as $col) {
@@ -252,15 +267,17 @@ class WidgetView extends CControllerDashboardWidgetView {
 							$visible_columns = $columns;
 						}
 						else {
-							$visible_columns = array_values(array_filter($visible_columns, function($c) use ($columns) {
-								return in_array($c, $columns, true);
-							}));
+							$visible_columns = $this->resolveColumnNames($columns, $visible_columns);
 							if (!$visible_columns) {
 								$visible_columns = $columns;
 							}
 						}
 
-						if ($chart_label_column === '' || !in_array($chart_label_column, $columns, true)) {
+						$resolved_chart_label_column = $this->resolveColumnName($columns, $chart_label_column);
+						if ($resolved_chart_label_column !== null) {
+							$chart_label_column = $resolved_chart_label_column;
+						}
+						else {
 							$chart_label_column = $detected_chart['label'];
 						}
 
@@ -269,9 +286,7 @@ class WidgetView extends CControllerDashboardWidgetView {
 							$chart_value_columns = $detected_chart['values'];
 						}
 						else {
-							$chart_value_columns = array_values(array_filter($chart_value_columns, function($c) use ($columns) {
-								return in_array($c, $columns, true);
-							}));
+							$chart_value_columns = $this->resolveColumnNames($columns, $chart_value_columns);
 						}
 
 						if (!in_array($chart_type, ['bar', 'compact-bar', 'value-only'], true)) {
