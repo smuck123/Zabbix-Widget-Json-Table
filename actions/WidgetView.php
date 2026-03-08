@@ -7,6 +7,27 @@ use CControllerResponseData;
 
 class WidgetView extends CControllerDashboardWidgetView {
 
+	private const CHART_TYPES = [
+		0 => 'bar',
+		1 => 'compact-bar',
+		2 => 'stacked-bar',
+		3 => 'dot',
+		4 => 'value-only'
+	];
+
+	private const COLOR_THEMES = [
+		0 => 'ocean',
+		1 => 'violet',
+		2 => 'forest',
+		3 => 'sunset',
+		4 => 'fire',
+		5 => 'ice',
+		6 => 'mono',
+		7 => 'neon',
+		8 => 'pastel',
+		9 => 'earth'
+	];
+
 	private function isListArray($value): bool {
 		if (!is_array($value)) {
 			return false;
@@ -203,6 +224,38 @@ class WidgetView extends CControllerDashboardWidgetView {
 		];
 	}
 
+	private function resolveChartType($value): string {
+		if (is_numeric($value)) {
+			$index = (int) $value;
+			if (array_key_exists($index, self::CHART_TYPES)) {
+				return self::CHART_TYPES[$index];
+			}
+		}
+
+		$value = trim((string) $value);
+		if (in_array($value, self::CHART_TYPES, true)) {
+			return $value;
+		}
+
+		return 'bar';
+	}
+
+	private function resolveColorTheme($value): string {
+		if (is_numeric($value)) {
+			$index = (int) $value;
+			if (array_key_exists($index, self::COLOR_THEMES)) {
+				return self::COLOR_THEMES[$index];
+			}
+		}
+
+		$value = strtolower(trim((string) $value));
+		if (in_array($value, self::COLOR_THEMES, true)) {
+			return $value;
+		}
+
+		return 'ocean';
+	}
+
 	protected function doAction(): void {
 		$itemids = $this->fields_values['itemid'] ?? [];
 		$show_summary = (int) ($this->fields_values['show_summary'] ?? 1);
@@ -214,9 +267,9 @@ class WidgetView extends CControllerDashboardWidgetView {
 		$visible_columns_raw = trim((string) ($this->fields_values['visible_columns'] ?? ''));
 		$chart_label_column = trim((string) ($this->fields_values['chart_label_column'] ?? ''));
 		$chart_value_columns_raw = trim((string) ($this->fields_values['chart_value_columns'] ?? ''));
-		$chart_type = trim((string) ($this->fields_values['chart_type'] ?? 'bar'));
+		$chart_type = $this->resolveChartType($this->fields_values['chart_type'] ?? 0);
 		$max_chart_rows_raw = trim((string) ($this->fields_values['max_chart_rows'] ?? '10'));
-		$color_theme = strtolower(trim((string) ($this->fields_values['color_theme'] ?? 'ocean')));
+		$color_theme = $this->resolveColorTheme($this->fields_values['color_theme'] ?? 0);
 		$chart_palette_raw = trim((string) ($this->fields_values['chart_palette'] ?? ''));
 
 		$color_ok = $this->sanitizeColor((string) ($this->fields_values['color_ok'] ?? ''), '#5cb85c');
