@@ -47,6 +47,22 @@ if (array_key_exists('chart_type', $data['fields'])) {
 	$form->addField(new CWidgetFieldSelectView($data['fields']['chart_type']));
 }
 
+if (array_key_exists('show_second_chart', $data['fields'])) {
+	$form->addField(new CWidgetFieldCheckBoxView($data['fields']['show_second_chart']));
+}
+
+if (array_key_exists('chart2_label_column', $data['fields'])) {
+	$form->addField(new CWidgetFieldTextBoxView($data['fields']['chart2_label_column']));
+}
+
+if (array_key_exists('chart2_value_columns', $data['fields'])) {
+	$form->addField(new CWidgetFieldTextBoxView($data['fields']['chart2_value_columns']));
+}
+
+if (array_key_exists('chart2_type', $data['fields'])) {
+	$form->addField(new CWidgetFieldSelectView($data['fields']['chart2_type']));
+}
+
 if (array_key_exists('max_chart_rows', $data['fields'])) {
 	$form->addField(new CWidgetFieldTextBoxView($data['fields']['max_chart_rows']));
 }
@@ -61,19 +77,19 @@ if (array_key_exists('chart_palette', $data['fields'])) {
 }
 
 if (array_key_exists('color_ok', $data['fields'])) {
-	$form->addField(new CWidgetFieldTextBoxView($data['fields']['color_ok']));
+	$form->addField(new CWidgetFieldSelectView($data['fields']['color_ok']));
 }
 
 if (array_key_exists('color_warn', $data['fields'])) {
-	$form->addField(new CWidgetFieldTextBoxView($data['fields']['color_warn']));
+	$form->addField(new CWidgetFieldSelectView($data['fields']['color_warn']));
 }
 
 if (array_key_exists('color_error', $data['fields'])) {
-	$form->addField(new CWidgetFieldTextBoxView($data['fields']['color_error']));
+	$form->addField(new CWidgetFieldSelectView($data['fields']['color_error']));
 }
 
 if (array_key_exists('color_info', $data['fields'])) {
-	$form->addField(new CWidgetFieldTextBoxView($data['fields']['color_info']));
+	$form->addField(new CWidgetFieldSelectView($data['fields']['color_info']));
 }
 
 if (array_key_exists('status_color_map', $data['fields'])) {
