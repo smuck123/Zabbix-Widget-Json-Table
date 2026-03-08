@@ -6,9 +6,31 @@ use Zabbix\Widgets\CWidgetForm;
 use Zabbix\Widgets\CWidgetField;
 use Zabbix\Widgets\Fields\CWidgetFieldMultiSelectItem;
 use Zabbix\Widgets\Fields\CWidgetFieldCheckBox;
+use Zabbix\Widgets\Fields\CWidgetFieldSelect;
 use Zabbix\Widgets\Fields\CWidgetFieldTextBox;
 
 class WidgetForm extends CWidgetForm {
+
+	private const CHART_TYPE_OPTIONS = [
+		0 => 'Bar',
+		1 => 'Compact bar',
+		2 => 'Stacked bar',
+		3 => 'Dot',
+		4 => 'Value only'
+	];
+
+	private const COLOR_THEME_OPTIONS = [
+		0 => 'Ocean',
+		1 => 'Violet',
+		2 => 'Forest',
+		3 => 'Sunset',
+		4 => 'Fire',
+		5 => 'Ice',
+		6 => 'Mono',
+		7 => 'Neon',
+		8 => 'Pastel',
+		9 => 'Earth'
+	];
 
 	public function addFields(): self {
 		return $this
@@ -25,9 +47,9 @@ class WidgetForm extends CWidgetForm {
 			->addField(new CWidgetFieldTextBox('visible_columns', _('Visible table columns (comma-separated)')))
 			->addField(new CWidgetFieldTextBox('chart_label_column', _('Chart label column')))
 			->addField(new CWidgetFieldTextBox('chart_value_columns', _('Chart value columns (comma-separated)')))
-			->addField((new CWidgetFieldTextBox('chart_type', _('Chart type (bar, compact-bar, stacked-bar, dot, value-only)')))->setDefault('bar'))
+			->addField((new CWidgetFieldSelect('chart_type', _('Chart type'), self::CHART_TYPE_OPTIONS))->setDefault(0))
 			->addField((new CWidgetFieldTextBox('max_chart_rows', _('Max chart rows')))->setDefault('10'))
-			->addField((new CWidgetFieldTextBox('color_theme', _('Color theme (select: ocean, violet, forest, sunset, fire, ice, mono, neon, pastel, earth)')))->setDefault('ocean'))
+			->addField((new CWidgetFieldSelect('color_theme', _('Color theme'), self::COLOR_THEME_OPTIONS))->setDefault(0))
 			->addField((new CWidgetFieldTextBox('chart_palette', _('Chart palette override (#hex,#hex,...)')))->setDefault(''))
 			->addField((new CWidgetFieldTextBox('color_ok', _('OK color')))->setDefault('#5cb85c'))
 			->addField((new CWidgetFieldTextBox('color_warn', _('Warn color')))->setDefault('#f0ad4e'))

@@ -44,7 +44,7 @@ if (array_key_exists('chart_value_columns', $data['fields'])) {
 }
 
 if (array_key_exists('chart_type', $data['fields'])) {
-	$form->addField(new CWidgetFieldTextBoxView($data['fields']['chart_type']));
+	$form->addField(new CWidgetFieldSelectView($data['fields']['chart_type']));
 }
 
 if (array_key_exists('max_chart_rows', $data['fields'])) {
@@ -53,7 +53,7 @@ if (array_key_exists('max_chart_rows', $data['fields'])) {
 
 
 if (array_key_exists('color_theme', $data['fields'])) {
-	$form->addField(new CWidgetFieldTextBoxView($data['fields']['color_theme']));
+	$form->addField(new CWidgetFieldSelectView($data['fields']['color_theme']));
 }
 
 if (array_key_exists('chart_palette', $data['fields'])) {
