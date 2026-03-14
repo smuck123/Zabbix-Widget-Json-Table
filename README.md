@@ -5,12 +5,12 @@ A custom Zabbix dashboard widget module that renders JSON data from a selected i
 ## Features
 
 - Converts JSON payloads into table rows and columns automatically.
-- Optional summary cards for top-level metrics.
+- Optional summary cards for top-level metrics plus auto-generated row analytics (totals, unique hosts/processes, parsed counts, timestamp range).
 - Optional expandable nested details per row.
 - Optional inline chart blocks (bar/compact-bar/stacked-bar/dot/value-only/line/lollipop/soft-area).
 - Status badges with configurable color mapping.
 - Case-insensitive column matching for visible columns and chart selectors.
-- Display controls for compact mode, dark header, and visible columns.
+- Display controls for compact mode, dark header, visible columns, and row-limiting for very large payloads.
 
 ## Requirements
 
@@ -38,6 +38,7 @@ When editing the widget, configure these main fields:
 - **Chart type**: `bar`, `compact-bar`, `stacked-bar`, `dot`, `value-only`, `line`, `lollipop`, or `soft-area` (default: `bar`).
 - **Show second chart panel**: Optional second chart block with its own label/value columns and chart type.
 - **Max chart rows**: Limit number of plotted rows (default: `10`).
+- **Max table rows**: Limit rendered rows for performance on large datasets; widget displays a truncation notice (default: `200`).
 - **Status colors**: Pick from a 15-color chooser (Green, Amber, Red, Blue, Violet, Cyan, Teal, Orange, Pink, Gray, Slate, Indigo, Lime, Brown, Black).
 - **Color theme**: Choose one of 10 built-in chart palettes: `ocean`, `violet`, `forest`, `sunset`, `fire`, `ice`, `mono`, `neon`, `pastel`, `earth`.
 - **Chart palette override**: Optional comma-separated HEX colors when you want custom colors.

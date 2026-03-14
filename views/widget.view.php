@@ -17,6 +17,7 @@ $columns = is_array($data['columns'] ?? null) ? $data['columns'] : [];
 $visible_columns = is_array($data['visible_columns'] ?? null) ? $data['visible_columns'] : $columns;
 $summary = is_array($data['summary'] ?? null) ? $data['summary'] : [];
 $status_columns = is_array($data['status_columns'] ?? null) ? $data['status_columns'] : [];
+$table_meta = is_array($data['table_meta'] ?? null) ? $data['table_meta'] : [];
 
 $show_summary = !empty($data['show_summary']);
 $show_expand = !empty($data['show_expand']);
@@ -258,6 +259,14 @@ $css = '
 	opacity: 0.85;
 	color: #475569;
 }
+#'.$container_id.' .jt-notice {
+	margin: 0 0 10px 0;
+	padding: 8px 10px;
+	border-radius: 6px;
+	border: 1px solid #cbd5e1;
+	background: #f8fafc;
+	color: #0f172a;
+}
 </style>
 ';
 
@@ -418,6 +427,10 @@ if ($show_chart) {
 
 if ($show_second_chart) {
 	$html .= jt_render_chart_block($rows, $chart2_label_column, $chart2_value_columns, $chart2_type, $max_chart_rows, $chart_palette);
+}
+
+if (!empty($table_meta['is_truncated'])) {
+	$html .= '<div class="jt-notice">'.htmlspecialchars(sprintf(_('Showing first %1$s of %2$s rows for performance.'), (string) ($table_meta['rows_shown'] ?? 0), (string) ($table_meta['rows_total'] ?? 0)), ENT_QUOTES, 'UTF-8').'</div>';
 }
 
 $html .= '<table class="jt-table">';

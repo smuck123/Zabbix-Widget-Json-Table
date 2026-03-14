@@ -74,6 +74,7 @@ class WidgetForm extends CWidgetForm {
 			->addField(new CWidgetFieldTextBox('chart2_value_columns', _('Second chart value columns (comma-separated)')))
 			->addField((new CWidgetFieldSelect('chart2_type', _('Second chart type'), self::CHART_TYPE_OPTIONS))->setDefault(0))
 			->addField((new CWidgetFieldTextBox('max_chart_rows', _('Max chart rows')))->setDefault('10'))
+			->addField((new CWidgetFieldTextBox('max_table_rows', _('Max table rows')))->setDefault('200'))
 			->addField((new CWidgetFieldSelect('color_theme', _('Color theme'), self::COLOR_THEME_OPTIONS))->setDefault(0))
 			->addField((new CWidgetFieldTextBox('chart_palette', _('Chart palette override (#hex,#hex,...)')))->setDefault(''))
 			->addField((new CWidgetFieldSelect('color_ok', _('OK color'), self::COLOR_OPTIONS))->setDefault(0))
