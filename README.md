@@ -45,6 +45,7 @@ When editing the widget, configure these main fields:
 - **Show second chart panel**: Optional second chart block with its own label/value columns and chart type.
 - **Max chart rows**: Limit number of plotted rows (default: `10`).
 - **Max table rows**: Limit rendered rows for performance on large datasets; widget displays a truncation notice (default: `200`).
+- **History values to merge**: Number of latest history values to parse and merge into one table so bursts of logs are shown together (default: `1`, latest value only).
 - **Status colors**: Pick from a 15-color chooser (Green, Amber, Red, Blue, Violet, Cyan, Teal, Orange, Pink, Gray, Slate, Indigo, Lime, Brown, Black).
 - **Color theme**: Choose one of 10 built-in chart palettes: `ocean`, `violet`, `forest`, `sunset`, `fire`, `ice`, `mono`, `neon`, `pastel`, `earth`.
 - **Chart palette override**: Optional comma-separated HEX colors when you want custom colors.
