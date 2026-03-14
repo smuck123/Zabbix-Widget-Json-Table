@@ -12,6 +12,7 @@ A custom Zabbix dashboard widget module that renders JSON data from a selected i
 - Status badges with configurable color mapping.
 - Case-insensitive column matching for visible columns and chart selectors.
 - Display controls for compact mode, dark header, visible columns, and row-limiting for very large payloads.
+- Built-in row filtering with keyword search plus one-click presets (All/Errors/Warnings/Info/OK).
 
 ## Requirements
 

@@ -267,6 +267,39 @@ $css = '
 	background: #f8fafc;
 	color: #0f172a;
 }
+#'.$container_id.' .jt-filter-bar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 0 0 10px 0;
+	align-items: center;
+}
+#'.$container_id.' .jt-search-input {
+	min-width: 220px;
+	flex: 1;
+	max-width: 420px;
+	padding: 6px 8px;
+	border: 1px solid #cbd5e1;
+	border-radius: 6px;
+	font-size: 12px;
+}
+#'.$container_id.' .jt-filter-preset {
+	padding: 5px 9px;
+	border: 1px solid #cbd5e1;
+	border-radius: 999px;
+	background: #ffffff;
+	font-size: 11px;
+	cursor: pointer;
+}
+#'.$container_id.' .jt-filter-preset.is-active {
+	background: #0f172a;
+	color: #ffffff;
+	border-color: #0f172a;
+}
+#'.$container_id.' .jt-filter-meta {
+	font-size: 11px;
+	color: #475569;
+}
 </style>
 ';
 
@@ -433,6 +466,16 @@ if (!empty($table_meta['is_truncated'])) {
 	$html .= '<div class="jt-notice">'.htmlspecialchars(sprintf(_('Showing first %1$s of %2$s rows for performance.'), (string) ($table_meta['rows_shown'] ?? 0), (string) ($table_meta['rows_total'] ?? 0)), ENT_QUOTES, 'UTF-8').'</div>';
 }
 
+$html .= '<div class="jt-filter-bar">';
+$html .= '<input type="text" class="jt-search-input" placeholder="'.htmlspecialchars(_('Search rows (errors, host, message, etc.)'), ENT_QUOTES, 'UTF-8').'" />';
+$html .= '<button type="button" class="jt-filter-preset is-active" data-preset="all">'.htmlspecialchars(_('All'), ENT_QUOTES, 'UTF-8').'</button>';
+$html .= '<button type="button" class="jt-filter-preset" data-preset="error">'.htmlspecialchars(_('Errors'), ENT_QUOTES, 'UTF-8').'</button>';
+$html .= '<button type="button" class="jt-filter-preset" data-preset="warning">'.htmlspecialchars(_('Warnings'), ENT_QUOTES, 'UTF-8').'</button>';
+$html .= '<button type="button" class="jt-filter-preset" data-preset="info">'.htmlspecialchars(_('Info'), ENT_QUOTES, 'UTF-8').'</button>';
+$html .= '<button type="button" class="jt-filter-preset" data-preset="ok">'.htmlspecialchars(_('OK'), ENT_QUOTES, 'UTF-8').'</button>';
+$html .= '<span class="jt-filter-meta"></span>';
+$html .= '</div>';
+
 $html .= '<table class="jt-table">';
 $html .= '<thead><tr>';
 if ($show_expand) {
@@ -445,13 +488,28 @@ $html .= '</tr></thead><tbody>';
 
 foreach ($rows as $row) {
 	$details = [];
+	$search_parts = [];
+	$status_parts = [];
 	foreach ($row as $k => $v) {
 		if (is_array($v) || is_object($v)) {
 			$details[$k] = $v;
+			$search_parts[] = (string) $k;
+			$search_parts[] = (string) json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+			continue;
+		}
+
+		$cell_value = (string) $v;
+		$search_parts[] = (string) $k;
+		$search_parts[] = $cell_value;
+		if (in_array($k, $status_columns, true)) {
+			$status_parts[] = $cell_value;
 		}
 	}
 
-	$html .= '<tr>';
+	$row_search_text = strtolower(implode(' ', $search_parts));
+	$row_status_text = strtolower(implode(' ', $status_parts));
+
+	$html .= '<tr class="jt-data-row" data-search="'.htmlspecialchars($row_search_text, ENT_QUOTES, 'UTF-8').'" data-status="'.htmlspecialchars($row_status_text, ENT_QUOTES, 'UTF-8').'">';
 	if ($show_expand) {
 		$html .= '<td class="jt-expand-cell">'.(!empty($details) ? '+' : '').'</td>';
 	}
@@ -482,7 +540,7 @@ foreach ($rows as $row) {
 
 	if ($show_expand && !empty($details)) {
 		$colspan = count($visible_columns) + 1;
-		$html .= '<tr>';
+		$html .= '<tr class="jt-detail-row">';
 		$html .= '<td colspan="'.$colspan.'"><div class="jt-details-box">'.htmlspecialchars(json_encode($details, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8').'</div></td>';
 		$html .= '</tr>';
 	}
@@ -490,6 +548,36 @@ foreach ($rows as $row) {
 
 $html .= '</tbody></table>';
 $html .= '</div>';
+$html .= '<script>(function(){\n'
+	.'var root=document.getElementById('.json_encode($container_id).');\n'
+	.'if(!root){return;}\n'
+	.'var searchInput=root.querySelector(".jt-search-input");\n'
+	.'var presetButtons=root.querySelectorAll(".jt-filter-preset");\n'
+	.'var infoNode=root.querySelector(".jt-filter-meta");\n'
+	.'var dataRows=root.querySelectorAll("tbody tr.jt-data-row");\n'
+	.'var activePreset="all";\n'
+	.'var PRESETS={all:[],error:["error","failed","fail","critical","alert","deny","denied"],warning:["warn","warning","medium"],info:["info","running","processing","low","inprogress"],ok:["ok","success","passed","accept","accepted"]};\n'
+	.'function applyFilters(){\n'
+	.' var query=(searchInput&&searchInput.value?searchInput.value:"").toLowerCase().trim();\n'
+	.' var shown=0;\n'
+	.' dataRows.forEach(function(row){\n'
+	.'  var rowText=row.getAttribute("data-search")||"";\n'
+	.'  var rowStatus=row.getAttribute("data-status")||"";\n'
+	.'  var next=row.nextElementSibling;\n'
+	.'  var matchQuery=(query===""||rowText.indexOf(query)!==-1);\n'
+	.'  var presetTokens=PRESETS[activePreset]||[];\n'
+	.'  var matchPreset=(presetTokens.length===0)||presetTokens.some(function(token){return rowStatus.indexOf(token)!==-1||rowText.indexOf(token)!==-1;});\n'
+	.'  var visible=matchQuery&&matchPreset;\n'
+	.'  row.style.display=visible?"":"none";\n'
+	.'  if(next&&next.classList.contains("jt-detail-row")){next.style.display=visible?"":"none";}\n'
+	.'  if(visible){shown++;}\n'
+	.' });\n'
+	.' if(infoNode){infoNode.textContent=shown+" / "+dataRows.length+" '+addslashes(_('rows'))+'";}\n'
+	.'}\n'
+	.'if(searchInput){searchInput.addEventListener("input",applyFilters);}\n'
+	.'presetButtons.forEach(function(btn){btn.addEventListener("click",function(){activePreset=btn.getAttribute("data-preset")||"all";presetButtons.forEach(function(b){b.classList.toggle("is-active",b===btn);});applyFilters();});});\n'
+	.'applyFilters();\n'
+	.'})();</script>';
 
 $widget
 	->addItem($css)
