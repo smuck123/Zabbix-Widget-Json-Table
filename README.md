@@ -11,7 +11,7 @@ A custom Zabbix dashboard widget module that renders JSON data from a selected i
 - Optional inline chart blocks (bar/compact-bar/stacked-bar/dot/value-only/line/lollipop/soft-area).
 - Status badges with configurable color mapping.
 - Case-insensitive column matching for visible columns and chart selectors.
-- Display controls for compact mode, dark header, visible columns, and row-limiting for very large payloads.
+- Display controls for compact mode, dark header, visible columns, row filtering (errors/keywords), and row-limiting for very large payloads.
 
 ## Requirements
 
@@ -37,6 +37,8 @@ When editing the widget, configure these main fields:
 - **Group-by columns**: Optional comma-separated grouping keys (for example: `host,process,message`).
 - **Normalize message text before grouping**: Replaces dynamic ids/timestamps/numbers in `message` so semantically similar lines group together.
 - **Dark table header** / **Compact mode**: Visual style options.
+- **Filter rows: errors only**: Show only rows containing error-like terms (for example: `error`, `failed`, `critical`).
+- **Filter rows: keywords**: Optional comma-separated keywords to keep matching rows (for example: `timeout,denied,database`).
 - **Visible table columns**: Comma-separated allow-list of columns.
 - **Chart label/value columns**: Explicit chart column selection.
 - **Chart type**: `bar`, `compact-bar`, `stacked-bar`, `dot`, `value-only`, `line`, `lollipop`, or `soft-area` (default: `bar`).

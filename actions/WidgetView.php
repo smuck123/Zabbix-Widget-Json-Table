@@ -228,6 +228,86 @@ class WidgetView extends CControllerDashboardWidgetView {
 		return $summary;
 	}
 
+
+	private function rowContainsFilterValue($value, array $keywords_lc, bool $errors_only): bool {
+		if (is_array($value)) {
+			foreach ($value as $nested) {
+				if ($this->rowContainsFilterValue($nested, $keywords_lc, $errors_only)) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		if (is_object($value)) {
+			return $this->rowContainsFilterValue((array) $value, $keywords_lc, $errors_only);
+		}
+
+		$text = strtolower(trim((string) $value));
+		if ($text === '') {
+			return false;
+		}
+
+		if ($errors_only) {
+			$has_error_word = false;
+			foreach (['error', 'failed', 'fail', 'critical', 'alert', 'fatal', 'exception', 'denied'] as $error_word) {
+				if (strpos($text, $error_word) !== false) {
+					$has_error_word = true;
+					break;
+				}
+			}
+			if (!$has_error_word) {
+				return false;
+			}
+		}
+
+		if (!$keywords_lc) {
+			return true;
+		}
+
+		foreach ($keywords_lc as $keyword) {
+			if (strpos($text, $keyword) !== false) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private function rowMatchesFilters(array $row, array $keywords_lc, bool $errors_only): bool {
+		foreach ($row as $value) {
+			if ($this->rowContainsFilterValue($value, $keywords_lc, $errors_only)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private function filterRows(array $rows, array $keywords, bool $errors_only): array {
+		if (!$errors_only && !$keywords) {
+			return $rows;
+		}
+
+		$keywords_lc = [];
+		foreach ($keywords as $keyword) {
+			$keyword = strtolower(trim((string) $keyword));
+			if ($keyword !== '') {
+				$keywords_lc[] = $keyword;
+			}
+		}
+		$keywords_lc = array_values(array_unique($keywords_lc));
+
+		$result = [];
+		foreach ($rows as $row) {
+			if ($this->rowMatchesFilters($row, $keywords_lc, $errors_only)) {
+				$result[] = $row;
+			}
+		}
+
+		return $result;
+	}
+
 	private function detectRows($decoded): array {
 		if (is_array($decoded) && !$this->isListArray($decoded)) {
 			$candidates = ['rows', 'data', 'events', 'records', 'items', 'failedRuns', 'flows', 'latestFailedActivities', 'tables'];
@@ -511,6 +591,8 @@ class WidgetView extends CControllerDashboardWidgetView {
 		$normalize_messages = (int) ($this->fields_values['normalize_messages'] ?? 1);
 		$dark_header = (int) ($this->fields_values['dark_header'] ?? 1);
 		$compact_mode = (int) ($this->fields_values['compact_mode'] ?? 0);
+		$filter_errors_only = (int) ($this->fields_values['filter_errors_only'] ?? 0);
+		$filter_keywords_raw = trim((string) ($this->fields_values['filter_keywords'] ?? ''));
 		$max_table_rows_raw = trim((string) ($this->fields_values['max_table_rows'] ?? '200'));
 
 		$visible_columns_raw = trim((string) ($this->fields_values['visible_columns'] ?? ''));
@@ -590,8 +672,23 @@ class WidgetView extends CControllerDashboardWidgetView {
 					}
 
 					$rows = $this->detectRows($decoded);
+					$rows_before_filtering = count($rows);
+					$filter_keywords = $this->parseCsv($filter_keywords_raw);
+					$rows = $this->filterRows($rows, $filter_keywords, $filter_errors_only === 1);
 					$columns = $this->getColumns($rows);
 					$source_row_count = count($rows);
+
+					if ($filter_errors_only || $filter_keywords) {
+						$summary['filter_enabled'] = 1;
+						$summary['rows_before_filter'] = $rows_before_filtering;
+						$summary['rows_after_filter'] = count($rows);
+						if ($filter_errors_only) {
+							$summary['filter_errors_only'] = 1;
+						}
+						if ($filter_keywords) {
+							$summary['filter_keywords'] = implode(', ', $filter_keywords);
+						}
+					}
 
 					if ($aggregate_similar) {
 						$aggregate_columns = $this->parseCsv($aggregate_columns_raw);
@@ -710,6 +807,8 @@ class WidgetView extends CControllerDashboardWidgetView {
 			'show_second_chart' => $show_second_chart,
 			'dark_header' => $dark_header,
 			'compact_mode' => $compact_mode,
+			'filter_errors_only' => $filter_errors_only,
+			'filter_keywords' => $filter_keywords_raw,
 			'max_table_rows' => $max_table_rows,
 			'table_meta' => $table_meta,
 			'chart_label_column' => $chart_label_column,
