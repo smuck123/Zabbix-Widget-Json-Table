@@ -23,6 +23,18 @@ if (array_key_exists('show_chart', $data['fields'])) {
 	$form->addField(new CWidgetFieldCheckBoxView($data['fields']['show_chart']));
 }
 
+if (array_key_exists('aggregate_similar', $data['fields'])) {
+	$form->addField(new CWidgetFieldCheckBoxView($data['fields']['aggregate_similar']));
+}
+
+if (array_key_exists('aggregate_columns', $data['fields'])) {
+	$form->addField(new CWidgetFieldTextBoxView($data['fields']['aggregate_columns']));
+}
+
+if (array_key_exists('normalize_messages', $data['fields'])) {
+	$form->addField(new CWidgetFieldCheckBoxView($data['fields']['normalize_messages']));
+}
+
 if (array_key_exists('dark_header', $data['fields'])) {
 	$form->addField(new CWidgetFieldCheckBoxView($data['fields']['dark_header']));
 }
