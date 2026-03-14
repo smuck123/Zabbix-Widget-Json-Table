@@ -581,6 +581,57 @@ class WidgetView extends CControllerDashboardWidgetView {
 		return 'ocean';
 	}
 
+	private function decodeRowsFromRawValue($raw): ?array {
+		if ($raw === '' || $raw === null) {
+			return null;
+		}
+
+		$decoded = json_decode((string) $raw, true);
+		if (json_last_error() !== JSON_ERROR_NONE) {
+			return null;
+		}
+
+		return $this->detectRows($decoded);
+	}
+
+	private function collectHistoryRows(string $itemid, int $history_type, int $limit): array {
+		if ($limit <= 1) {
+			return [];
+		}
+
+		$history = \API::History()->get([
+			'output' => ['value'],
+			'itemids' => [$itemid],
+			'history' => $history_type,
+			'sortfield' => ['clock', 'ns'],
+			'sortorder' => 'DESC',
+			'limit' => $limit
+		]);
+
+		if (!$history) {
+			return [];
+		}
+
+		$rows = [];
+		$history = array_reverse($history);
+		foreach ($history as $entry) {
+			if (!array_key_exists('value', $entry)) {
+				continue;
+			}
+
+			$entry_rows = $this->decodeRowsFromRawValue($entry['value']);
+			if ($entry_rows === null) {
+				continue;
+			}
+
+			foreach ($entry_rows as $entry_row) {
+				$rows[] = $entry_row;
+			}
+		}
+
+		return $rows;
+	}
+
 	protected function doAction(): void {
 		$itemids = $this->fields_values['itemid'] ?? [];
 		$show_summary = (int) ($this->fields_values['show_summary'] ?? 1);
@@ -594,6 +645,7 @@ class WidgetView extends CControllerDashboardWidgetView {
 		$filter_errors_only = (int) ($this->fields_values['filter_errors_only'] ?? 0);
 		$filter_keywords_raw = trim((string) ($this->fields_values['filter_keywords'] ?? ''));
 		$max_table_rows_raw = trim((string) ($this->fields_values['max_table_rows'] ?? '200'));
+		$history_values_limit_raw = trim((string) ($this->fields_values['history_values_limit'] ?? '1'));
 
 		$visible_columns_raw = trim((string) ($this->fields_values['visible_columns'] ?? ''));
 		$chart_label_column = trim((string) ($this->fields_values['chart_label_column'] ?? ''));
@@ -639,12 +691,17 @@ class WidgetView extends CControllerDashboardWidgetView {
 			$max_table_rows = 200;
 		}
 
+		$history_values_limit = (int) $history_values_limit_raw;
+		if ($history_values_limit <= 0) {
+			$history_values_limit = 1;
+		}
+
 		if (!$itemids) {
 			$error = _('No item selected.');
 		}
 		else {
 			$items = \API::Item()->get([
-				'output' => ['itemid', 'name', 'lastvalue'],
+				'output' => ['itemid', 'name', 'lastvalue', 'value_type'],
 				'itemids' => $itemids,
 				'webitems' => true
 			]);
@@ -671,12 +728,18 @@ class WidgetView extends CControllerDashboardWidgetView {
 						$summary = $this->detectSummary($decoded);
 					}
 
-					$rows = $this->detectRows($decoded);
+					$rows = $this->collectHistoryRows((string) $item['itemid'], (int) $item['value_type'], $history_values_limit);
+					if (!$rows) {
+						$rows = $this->detectRows($decoded);
+					}
 					$rows_before_filtering = count($rows);
 					$filter_keywords = $this->parseCsv($filter_keywords_raw);
 					$rows = $this->filterRows($rows, $filter_keywords, $filter_errors_only === 1);
 					$columns = $this->getColumns($rows);
 					$source_row_count = count($rows);
+					if ($history_values_limit > 1) {
+						$summary['history_values_merged'] = $history_values_limit;
+					}
 
 					if ($filter_errors_only || $filter_keywords) {
 						$summary['filter_enabled'] = 1;
@@ -810,6 +873,7 @@ class WidgetView extends CControllerDashboardWidgetView {
 			'filter_errors_only' => $filter_errors_only,
 			'filter_keywords' => $filter_keywords_raw,
 			'max_table_rows' => $max_table_rows,
+			'history_values_limit' => $history_values_limit,
 			'table_meta' => $table_meta,
 			'chart_label_column' => $chart_label_column,
 			'chart_value_columns' => $chart_value_columns,
