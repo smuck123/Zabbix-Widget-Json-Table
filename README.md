@@ -6,6 +6,7 @@ A custom Zabbix dashboard widget module that renders JSON data from a selected i
 
 - Converts JSON payloads into table rows and columns automatically.
 - Optional summary cards for top-level metrics plus auto-generated row analytics (totals, unique hosts/processes, parsed counts, timestamp range).
+- Optional grouping mode to summarize similar rows into one line with an `occurrences` counter.
 - Optional expandable nested details per row.
 - Optional inline chart blocks (bar/compact-bar/stacked-bar/dot/value-only/line/lollipop/soft-area).
 - Status badges with configurable color mapping.
@@ -32,6 +33,9 @@ When editing the widget, configure these main fields:
 - **Show summary counters**: Render compact summary cards.
 - **Show nested detail rows**: Enable row expansion for nested data.
 - **Show chart**: Display chart section above the table.
+- **Summarize similar rows (group & count)**: Collapse repetitive rows into grouped entries with `occurrences`.
+- **Group-by columns**: Optional comma-separated grouping keys (for example: `host,process,message`).
+- **Normalize message text before grouping**: Replaces dynamic ids/timestamps/numbers in `message` so semantically similar lines group together.
 - **Dark table header** / **Compact mode**: Visual style options.
 - **Visible table columns**: Comma-separated allow-list of columns.
 - **Chart label/value columns**: Explicit chart column selection.

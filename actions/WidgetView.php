@@ -303,7 +303,7 @@ class WidgetView extends CControllerDashboardWidgetView {
 			}
 		}
 
-		$preferred_numeric = ['runs', 'count', 'line_count', 'days_left', 'cpu_pct', 'memory_pct', 'requests', 'total_bytes', 'sent_bytes', 'rcvd_bytes', 'duration_sec', 'value'];
+		$preferred_numeric = ['runs', 'count', 'occurrences', 'line_count', 'days_left', 'cpu_pct', 'memory_pct', 'requests', 'total_bytes', 'sent_bytes', 'rcvd_bytes', 'duration_sec', 'value'];
 		$value_columns = $this->resolveColumnNames($columns, $preferred_numeric);
 
 		if (!$value_columns) {
@@ -321,6 +321,107 @@ class WidgetView extends CControllerDashboardWidgetView {
 			'label' => $label_column,
 			'values' => array_values(array_unique($value_columns))
 		];
+	}
+
+
+	private function normalizeMessageForGrouping(string $text): string {
+		$text = strtolower(trim($text));
+		$text = preg_replace('/\b\d{2}:\d{2}:\d{2}(?:\.\d+)?\b/', '{time}', $text);
+		$text = preg_replace('/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i', '{uuid}', $text);
+		$text = preg_replace('/\b[0-9a-f]{16,}\b/i', '{id}', $text);
+		$text = preg_replace('/\b\d+\b/', '{n}', $text);
+		$text = preg_replace('/\s+/', ' ', $text);
+
+		return trim((string) $text);
+	}
+
+	private function detectAggregateColumns(array $columns): array {
+		$preferred = ['host', 'process', 'message', 'status', 'state', 'action', 'severity', 'level'];
+		$resolved = $this->resolveColumnNames($columns, $preferred);
+
+		if ($resolved) {
+			return $resolved;
+		}
+
+		return $columns;
+	}
+
+	private function aggregateRows(array $rows, array $columns, array $aggregate_columns, bool $normalize_messages): array {
+		if (!$rows) {
+			return [];
+		}
+
+		if (!$aggregate_columns) {
+			$aggregate_columns = $this->detectAggregateColumns($columns);
+		}
+
+		$timestamp_column = $this->detectTimestampColumn($columns);
+		$groups = [];
+
+		foreach ($rows as $row) {
+			$key_parts = [];
+			$base_row = [];
+
+			foreach ($aggregate_columns as $col) {
+				$value = $row[$col] ?? '';
+				if (is_array($value) || is_object($value)) {
+					$value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+				}
+
+				$value = (string) $value;
+				if ($normalize_messages && strtolower($col) === 'message') {
+					$key_parts[] = $this->normalizeMessageForGrouping($value);
+				}
+				else {
+					$key_parts[] = strtolower(trim($value));
+				}
+				$base_row[$col] = $value;
+			}
+
+			$signature = implode('||', $key_parts);
+			if (!array_key_exists($signature, $groups)) {
+				$groups[$signature] = [
+					'row' => $base_row,
+					'occurrences' => 0,
+					'first_ts' => null,
+					'last_ts' => null
+				];
+			}
+
+			$groups[$signature]['occurrences']++;
+
+			if ($timestamp_column !== null && isset($row[$timestamp_column]) && !is_array($row[$timestamp_column]) && !is_object($row[$timestamp_column])) {
+				$ts_raw = (string) $row[$timestamp_column];
+				$ts = strtotime($ts_raw);
+				if ($ts !== false) {
+					if ($groups[$signature]['first_ts'] === null || $ts < $groups[$signature]['first_ts']) {
+						$groups[$signature]['first_ts'] = $ts;
+					}
+					if ($groups[$signature]['last_ts'] === null || $ts > $groups[$signature]['last_ts']) {
+						$groups[$signature]['last_ts'] = $ts;
+					}
+				}
+			}
+		}
+
+		$result = [];
+		foreach ($groups as $group) {
+			$item = $group['row'];
+			$item['occurrences'] = $group['occurrences'];
+			if ($group['first_ts'] !== null) {
+				$item['first_timestamp'] = date('c', $group['first_ts']);
+			}
+			if ($group['last_ts'] !== null) {
+				$item['last_timestamp'] = date('c', $group['last_ts']);
+			}
+			$result[] = $item;
+		}
+
+		usort($result, function($a, $b) {
+			return ((int) ($b['occurrences'] ?? 0)) <=> ((int) ($a['occurrences'] ?? 0));
+		});
+
+		return $result;
 	}
 
 	private function sanitizeColor(string $color, string $fallback): string {
@@ -405,6 +506,9 @@ class WidgetView extends CControllerDashboardWidgetView {
 		$show_summary = (int) ($this->fields_values['show_summary'] ?? 1);
 		$show_expand = (int) ($this->fields_values['show_expand'] ?? 1);
 		$show_chart = (int) ($this->fields_values['show_chart'] ?? 0);
+		$aggregate_similar = (int) ($this->fields_values['aggregate_similar'] ?? 0);
+		$aggregate_columns_raw = trim((string) ($this->fields_values['aggregate_columns'] ?? ''));
+		$normalize_messages = (int) ($this->fields_values['normalize_messages'] ?? 1);
 		$dark_header = (int) ($this->fields_values['dark_header'] ?? 1);
 		$compact_mode = (int) ($this->fields_values['compact_mode'] ?? 0);
 		$max_table_rows_raw = trim((string) ($this->fields_values['max_table_rows'] ?? '200'));
@@ -486,8 +590,24 @@ class WidgetView extends CControllerDashboardWidgetView {
 					}
 
 					$rows = $this->detectRows($decoded);
-					$total_rows = count($rows);
 					$columns = $this->getColumns($rows);
+					$source_row_count = count($rows);
+
+					if ($aggregate_similar) {
+						$aggregate_columns = $this->parseCsv($aggregate_columns_raw);
+						$aggregate_columns = $aggregate_columns
+							? $this->resolveColumnNames($columns, $aggregate_columns)
+							: $this->detectAggregateColumns($columns);
+
+						$rows = $this->aggregateRows($rows, $columns, $aggregate_columns, $normalize_messages === 1);
+						$columns = $this->getColumns($rows);
+						$summary['aggregation_enabled'] = 1;
+						$summary['source_rows'] = $source_row_count;
+						$summary['grouped_rows'] = count($rows);
+						$summary['grouped_by'] = implode(', ', $aggregate_columns);
+					}
+
+					$total_rows = count($rows);
 					$status_columns = $this->detectStatusColumns($columns);
 
 					$auto_row_summary = $this->buildRowSummary($rows, $columns);
