@@ -68,6 +68,8 @@ class WidgetForm extends CWidgetForm {
 			->addField((new CWidgetFieldCheckBox('normalize_messages', _('Normalize message text before grouping')))->setDefault(1))
 			->addField((new CWidgetFieldCheckBox('dark_header', _('Dark table header')))->setDefault(1))
 			->addField((new CWidgetFieldCheckBox('compact_mode', _('Compact mode')))->setDefault(0))
+			->addField((new CWidgetFieldCheckBox('filter_errors_only', _('Filter rows: errors only')))->setDefault(0))
+			->addField(new CWidgetFieldTextBox('filter_keywords', _('Filter rows: keywords (comma-separated)')))
 			->addField(new CWidgetFieldTextBox('visible_columns', _('Visible table columns (comma-separated)')))
 			->addField(new CWidgetFieldTextBox('chart_label_column', _('Chart label column')))
 			->addField(new CWidgetFieldTextBox('chart_value_columns', _('Chart value columns (comma-separated)')))

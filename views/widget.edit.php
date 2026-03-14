@@ -43,6 +43,14 @@ if (array_key_exists('compact_mode', $data['fields'])) {
 	$form->addField(new CWidgetFieldCheckBoxView($data['fields']['compact_mode']));
 }
 
+if (array_key_exists('filter_errors_only', $data['fields'])) {
+	$form->addField(new CWidgetFieldCheckBoxView($data['fields']['filter_errors_only']));
+}
+
+if (array_key_exists('filter_keywords', $data['fields'])) {
+	$form->addField(new CWidgetFieldTextBoxView($data['fields']['filter_keywords']));
+}
+
 if (array_key_exists('visible_columns', $data['fields'])) {
 	$form->addField(new CWidgetFieldTextBoxView($data['fields']['visible_columns']));
 }
