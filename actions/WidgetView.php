@@ -122,9 +122,115 @@ class WidgetView extends CControllerDashboardWidgetView {
 		return $summary;
 	}
 
+	private function detectTimestampColumn(array $columns): ?string {
+		$preferred = ['timestamp', 'time', 'datetime', 'date', 'generated_at'];
+
+		foreach ($preferred as $name) {
+			$resolved = $this->resolveColumnName($columns, $name);
+			if ($resolved !== null) {
+				return $resolved;
+			}
+		}
+
+		return null;
+	}
+
+	private function buildRowSummary(array $rows, array $columns): array {
+		$summary = [
+			'rows_total' => count($rows)
+		];
+
+		if (!$rows) {
+			return $summary;
+		}
+
+		$host_column = $this->resolveColumnName($columns, 'host');
+		$process_column = $this->resolveColumnName($columns, 'process');
+		$parsed_column = $this->resolveColumnName($columns, 'parsed');
+		$timestamp_column = $this->detectTimestampColumn($columns);
+
+		if ($host_column !== null) {
+			$hosts = [];
+			foreach ($rows as $row) {
+				if (isset($row[$host_column]) && !is_array($row[$host_column]) && !is_object($row[$host_column])) {
+					$hosts[(string) $row[$host_column]] = true;
+				}
+			}
+			$summary['unique_hosts'] = count($hosts);
+		}
+
+		if ($process_column !== null) {
+			$process_counts = [];
+			foreach ($rows as $row) {
+				if (isset($row[$process_column]) && !is_array($row[$process_column]) && !is_object($row[$process_column])) {
+					$process = (string) $row[$process_column];
+					$process_counts[$process] = ($process_counts[$process] ?? 0) + 1;
+				}
+			}
+			$summary['unique_processes'] = count($process_counts);
+
+			if ($process_counts) {
+				arsort($process_counts);
+				$top_process = array_key_first($process_counts);
+				$summary['top_process'] = $top_process;
+				$summary['top_process_count'] = $process_counts[$top_process];
+			}
+		}
+
+		if ($parsed_column !== null) {
+			$parsed_true = 0;
+			$parsed_false = 0;
+
+			foreach ($rows as $row) {
+				$value = $row[$parsed_column] ?? null;
+				if ($value === true || (is_string($value) && strtolower($value) === 'true') || (string) $value === '1') {
+					$parsed_true++;
+				}
+				elseif ($value === false || (is_string($value) && strtolower($value) === 'false') || (string) $value === '0') {
+					$parsed_false++;
+				}
+			}
+
+			$summary['parsed_true'] = $parsed_true;
+			$summary['parsed_false'] = $parsed_false;
+		}
+
+		if ($timestamp_column !== null) {
+			$min_ts = null;
+			$max_ts = null;
+
+			foreach ($rows as $row) {
+				if (!isset($row[$timestamp_column]) || is_array($row[$timestamp_column]) || is_object($row[$timestamp_column])) {
+					continue;
+				}
+
+				$ts = strtotime((string) $row[$timestamp_column]);
+				if ($ts === false) {
+					continue;
+				}
+
+				if ($min_ts === null || $ts < $min_ts) {
+					$min_ts = $ts;
+				}
+				if ($max_ts === null || $ts > $max_ts) {
+					$max_ts = $ts;
+				}
+			}
+
+			if ($min_ts !== null) {
+				$summary['first_timestamp'] = date('c', $min_ts);
+			}
+			if ($max_ts !== null) {
+				$summary['last_timestamp'] = date('c', $max_ts);
+			}
+		}
+
+		return $summary;
+	}
+
 	private function detectRows($decoded): array {
 		if (is_array($decoded) && !$this->isListArray($decoded)) {
-			$candidates = ['rows', 'data', 'failedRuns', 'flows', 'latestFailedActivities', 'tables'];
+			$candidates = ['rows', 'data', 'events', 'records', 'items', 'failedRuns', 'flows', 'latestFailedActivities', 'tables'];
 
 			foreach ($candidates as $candidate) {
 				if (isset($decoded[$candidate])) {
@@ -177,7 +283,7 @@ class WidgetView extends CControllerDashboardWidgetView {
 		$label_column = '';
 		$value_columns = [];
 
-		$preferred_label = ['name', 'hostname', 'pipelinename', 'flow', 'srcip', 'dstip', 'service', 'owner'];
+		$preferred_label = ['name', 'hostname', 'host', 'process', 'pipelinename', 'flow', 'service', 'owner', 'timestamp', 'srcip', 'dstip'];
 		foreach ($preferred_label as $p) {
 			$resolved = $this->resolveColumnName($columns, $p);
 			if ($resolved !== null) {
@@ -197,7 +303,7 @@ class WidgetView extends CControllerDashboardWidgetView {
 			}
 		}
 
-		$preferred_numeric = ['runs', 'count', 'days_left', 'cpu_pct', 'memory_pct', 'requests', 'total_bytes', 'sent_bytes', 'rcvd_bytes', 'duration_sec', 'value'];
+		$preferred_numeric = ['runs', 'count', 'line_count', 'days_left', 'cpu_pct', 'memory_pct', 'requests', 'total_bytes', 'sent_bytes', 'rcvd_bytes', 'duration_sec', 'value'];
 		$value_columns = $this->resolveColumnNames($columns, $preferred_numeric);
 
 		if (!$value_columns) {
@@ -301,6 +407,7 @@ class WidgetView extends CControllerDashboardWidgetView {
 		$show_chart = (int) ($this->fields_values['show_chart'] ?? 0);
 		$dark_header = (int) ($this->fields_values['dark_header'] ?? 1);
 		$compact_mode = (int) ($this->fields_values['compact_mode'] ?? 0);
+		$max_table_rows_raw = trim((string) ($this->fields_values['max_table_rows'] ?? '200'));
 
 		$visible_columns_raw = trim((string) ($this->fields_values['visible_columns'] ?? ''));
 		$chart_label_column = trim((string) ($this->fields_values['chart_label_column'] ?? ''));
@@ -330,6 +437,7 @@ class WidgetView extends CControllerDashboardWidgetView {
 		$chart_value_columns = [];
 		$chart2_value_columns = [];
 		$chart_palette = [];
+		$table_meta = [];
 		$color_themes = $this->getColorThemes();
 		if (!array_key_exists($color_theme, $color_themes)) {
 			$color_theme = 'ocean';
@@ -338,6 +446,11 @@ class WidgetView extends CControllerDashboardWidgetView {
 		$max_chart_rows = (int) $max_chart_rows_raw;
 		if ($max_chart_rows <= 0) {
 			$max_chart_rows = 10;
+		}
+
+		$max_table_rows = (int) $max_table_rows_raw;
+		if ($max_table_rows <= 0) {
+			$max_table_rows = 200;
 		}
 
 		if (!$itemids) {
@@ -368,13 +481,29 @@ class WidgetView extends CControllerDashboardWidgetView {
 						$error = _('Item does not contain valid JSON.');
 					}
 					else {
-						if (is_array($decoded) && !$this->isListArray($decoded)) {
-							$summary = $this->detectSummary($decoded);
-						}
+					if (is_array($decoded) && !$this->isListArray($decoded)) {
+						$summary = $this->detectSummary($decoded);
+					}
 
-						$rows = $this->detectRows($decoded);
-						$columns = $this->getColumns($rows);
-						$status_columns = $this->detectStatusColumns($columns);
+					$rows = $this->detectRows($decoded);
+					$total_rows = count($rows);
+					$columns = $this->getColumns($rows);
+					$status_columns = $this->detectStatusColumns($columns);
+
+					$auto_row_summary = $this->buildRowSummary($rows, $columns);
+					$summary = $summary + $auto_row_summary;
+
+					if ($total_rows > $max_table_rows) {
+						$rows = array_slice($rows, 0, $max_table_rows);
+						$table_meta['rows_total'] = $total_rows;
+						$table_meta['rows_shown'] = count($rows);
+						$table_meta['is_truncated'] = 1;
+					}
+					else {
+						$table_meta['rows_total'] = $total_rows;
+						$table_meta['rows_shown'] = $total_rows;
+						$table_meta['is_truncated'] = 0;
+					}
 
 						$detected_chart = $this->detectChartColumns($rows, $columns);
 
@@ -461,6 +590,8 @@ class WidgetView extends CControllerDashboardWidgetView {
 			'show_second_chart' => $show_second_chart,
 			'dark_header' => $dark_header,
 			'compact_mode' => $compact_mode,
+			'max_table_rows' => $max_table_rows,
+			'table_meta' => $table_meta,
 			'chart_label_column' => $chart_label_column,
 			'chart_value_columns' => $chart_value_columns,
 			'chart_type' => $chart_type,

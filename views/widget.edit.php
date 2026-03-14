@@ -67,6 +67,10 @@ if (array_key_exists('max_chart_rows', $data['fields'])) {
 	$form->addField(new CWidgetFieldTextBoxView($data['fields']['max_chart_rows']));
 }
 
+if (array_key_exists('max_table_rows', $data['fields'])) {
+	$form->addField(new CWidgetFieldTextBoxView($data['fields']['max_table_rows']));
+}
+
 
 if (array_key_exists('color_theme', $data['fields'])) {
 	$form->addField(new CWidgetFieldSelectView($data['fields']['color_theme']));
